@@ -671,11 +671,12 @@ func TestSeriesWithPost(t *testing.T) {
 
 func TestQuery(t *testing.T) {
 	for _, tc := range []struct {
-		name          string
-		labelv        string
-		promQuery     string
-		promQueryBody string
-		method        string
+		name           string
+		urlLabelVal    string
+		staticLabelVal string
+		promQuery      string
+		promQueryBody  string
+		method         string
 
 		expCode          int
 		expPromQuery     string
@@ -693,18 +694,18 @@ func TestQuery(t *testing.T) {
 			method:  http.MethodPost,
 		},
 		{
-			name:    `No "query" parameter returns 200 with empty body`,
-			labelv:  "default",
-			expCode: http.StatusOK,
+			name:        `No "query" parameter returns 200 with empty body`,
+			urlLabelVal: "default",
+			expCode:     http.StatusOK,
 		},
 		{
-			name:    `No "query" parameter returns 200 with empty body for POSTs`,
-			labelv:  "default",
-			expCode: http.StatusOK,
+			name:        `No "query" parameter returns 200 with empty body for POSTs`,
+			urlLabelVal: "default",
+			expCode:     http.StatusOK,
 		},
 		{
 			name:         `Query without a vector selector`,
-			labelv:       "default",
+			urlLabelVal:  "default",
 			promQuery:    "up",
 			expCode:      http.StatusOK,
 			expPromQuery: `up{namespace="default"}`,
@@ -712,7 +713,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query without a vector selector in POST body`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQueryBody:    "up",
 			method:           http.MethodPost,
 			expCode:          http.StatusOK,
@@ -721,7 +722,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Tricky: Query without a vector selector in GET body (yes, that's possible)'`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQueryBody:    "up",
 			method:           http.MethodGet,
 			expCode:          http.StatusOK,
@@ -729,7 +730,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query without a vector selector in POST body or query`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQuery:        "up",
 			promQueryBody:    "up",
 			method:           http.MethodPost,
@@ -740,7 +741,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query without a vector selector in POST body or query different`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQuery:        "up",
 			promQueryBody:    "foo",
 			method:           http.MethodPost,
@@ -751,7 +752,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:         `Query with a vector selector`,
-			labelv:       "default",
+			urlLabelVal:  "default",
 			promQuery:    `up{namespace="other"}`,
 			expCode:      http.StatusOK,
 			expPromQuery: `up{namespace="default"}`,
@@ -759,7 +760,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query with a vector selector in POST body`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQueryBody:    `up{namespace="other"}`,
 			method:           http.MethodPost,
 			expCode:          http.StatusOK,
@@ -768,7 +769,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:           `Query with a vector selector and errorOnReplace`,
-			labelv:         "default",
+			urlLabelVal:    "default",
 			promQuery:      `up{namespace="other"}`,
 			errorOnReplace: true,
 			expCode:        http.StatusBadRequest,
@@ -776,7 +777,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:           `Query with a vector selector in POST body and errorOnReplace`,
-			labelv:         "default",
+			urlLabelVal:    "default",
 			promQueryBody:  `up{namespace="other"}`,
 			method:         http.MethodPost,
 			errorOnReplace: true,
@@ -785,7 +786,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:         `Query with a scalar`,
-			labelv:       "default",
+			urlLabelVal:  "default",
 			promQuery:    "1",
 			expCode:      http.StatusOK,
 			expPromQuery: `1`,
@@ -793,7 +794,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query with a scalar in POST body`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQueryBody:    "1",
 			method:           http.MethodPost,
 			expCode:          http.StatusOK,
@@ -802,7 +803,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:         `Query with a function`,
-			labelv:       "default",
+			urlLabelVal:  "default",
 			promQuery:    "time()",
 			expCode:      http.StatusOK,
 			expPromQuery: `time()`,
@@ -810,7 +811,7 @@ func TestQuery(t *testing.T) {
 		},
 		{
 			name:             `Query with a function in POST body`,
-			labelv:           "default",
+			urlLabelVal:      "default",
 			promQueryBody:    "time()",
 			method:           http.MethodPost,
 			expCode:          http.StatusOK,
@@ -818,25 +819,40 @@ func TestQuery(t *testing.T) {
 			expResponse:      okResponse,
 		},
 		{
-			name:      `An invalid expression returns 400 with error response`,
-			labelv:    "default",
-			promQuery: "up +",
-			expCode:   http.StatusBadRequest,
+			name:        `An invalid expression returns 400 with error response`,
+			urlLabelVal: "default",
+			promQuery:   "up +",
+			expCode:     http.StatusBadRequest,
 		},
 		{
 			name:          `An invalid expression in POST body returns 400 with error response`,
-			labelv:        "default",
+			urlLabelVal:   "default",
 			promQueryBody: "up +",
 			method:        http.MethodPost,
 			expCode:       http.StatusBadRequest,
 		},
 		{
 			name:         `Binary expression`,
-			labelv:       "default",
+			urlLabelVal:  "default",
 			promQuery:    `up{instance="localhost:9090"} + foo{namespace="other"}`,
 			expCode:      http.StatusOK,
 			expPromQuery: `up{instance="localhost:9090",namespace="default"} + foo{namespace="default"}`,
 			expResponse:  okResponse,
+		},
+		{
+			name:           `Static label value`,
+			staticLabelVal: "default",
+			promQuery:      `up{instance="localhost:9090"} + foo{namespace="other"}`,
+			expCode:        http.StatusOK,
+			expPromQuery:   `up{instance="localhost:9090",namespace="default"} + foo{namespace="default"}`,
+			expResponse:    okResponse,
+		},
+		{
+			name:           `Static label value with URL query parameter`,
+			staticLabelVal: "default",
+			urlLabelVal:    "other-default",
+			promQuery:      `up{instance="localhost:9090"} + foo{namespace="other"}`,
+			expCode:        http.StatusBadRequest,
 		},
 	} {
 		for _, endpoint := range []string{"query", "query_range", "query_exemplars"} {
@@ -845,17 +861,21 @@ func TestQuery(t *testing.T) {
 				if tc.expPromQueryBody != "" {
 					expBody = url.Values(map[string][]string{"query": {tc.expPromQueryBody}}).Encode()
 				}
-				m := newMockUpstream(
-					checkParameterAbsent(
-						proxyLabel,
-						checkQueryHandler(expBody, queryParam, tc.expPromQuery),
-					),
-				)
+
+				mockHandler := checkQueryHandler(expBody, queryParam, tc.expPromQuery)
+				if tc.staticLabelVal == "" {
+					mockHandler = checkParameterAbsent(proxyLabel, mockHandler)
+				}
+				m := newMockUpstream(mockHandler)
 				defer m.Close()
 				var opts []Option
 				if tc.errorOnReplace {
 					opts = append(opts, WithErrorOnReplace())
 				}
+				if tc.staticLabelVal != "" {
+					opts = append(opts, WithLabelValue(tc.staticLabelVal))
+				}
+
 				r, err := NewRoutes(m.url, proxyLabel, opts...)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
@@ -867,7 +887,7 @@ func TestQuery(t *testing.T) {
 				}
 				q := u.Query()
 				q.Set(queryParam, tc.promQuery)
-				q.Set(proxyLabel, tc.labelv)
+				q.Set(proxyLabel, tc.urlLabelVal)
 				u.RawQuery = q.Encode()
 
 				var b io.Reader = nil
